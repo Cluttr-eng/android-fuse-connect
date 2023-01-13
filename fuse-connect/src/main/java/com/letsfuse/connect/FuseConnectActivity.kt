@@ -7,6 +7,10 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 
 class FuseConnectActivity : AppCompatActivity() {
+    companion object {
+        const val WEB_VIEW_BASE_URL = "https://shoreditch-indol.vercel.app"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_fuse_connect)
@@ -29,7 +33,9 @@ class FuseConnectActivity : AppCompatActivity() {
                 return handleUri(Uri.parse(url))
             }
         }
-        webView.loadUrl("https://www.example.com")
+
+
+        webView.loadUrl("$WEB_VIEW_BASE_URL/")
     }
 
     private fun handleUri( uri: Uri): Boolean {
