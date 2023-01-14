@@ -2,6 +2,7 @@ plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
     id 'kotlin-parcelize'
+    id 'maven-publish'
 }
 
 android {
@@ -38,4 +39,20 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'com.plaid.link:sdk-core:3.10.1'
+}
+
+
+
+publishing {
+    publications {
+        release(MavenPublication) {
+            groupId = 'com.github.Cluttr-eng'
+            artifactId = 'android-fuse-connect'
+            version = '0.0.1'
+
+            afterEvaluate {
+                from components.release
+            }
+        }
+    }
 }
