@@ -48,18 +48,17 @@ dependencies {
     implementation 'com.plaid.link:sdk-core:3.10.1'
 }
 
-
-
-publishing {
-    publications {
-        release(MavenPublication) {
-            groupId = 'com.github.Cluttr-eng'
-            artifactId = 'android-fuse-connect'
-            version = '0.0.1'
-
-            afterEvaluate {
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
                 from components.release
+                groupId = 'com.github.Cluttr-eng'
+                artifactId = 'android-fuse-connect'
+                version = '0.0.1'
             }
         }
     }
 }
+
+
