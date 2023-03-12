@@ -138,6 +138,7 @@ class FuseConnectActivity : Activity() {
                         onExit?.invoke(exit)
                     }
                 }
+                finish()
             }
         }
     }
