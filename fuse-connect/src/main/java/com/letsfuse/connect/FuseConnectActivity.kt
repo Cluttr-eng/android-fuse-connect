@@ -19,6 +19,17 @@ import kotlinx.serialization.json.Json
 import java.nio.charset.StandardCharsets
 import java.util.*
 
+data class Exit(
+    val err: ConnectError?,
+    val metadata: Map<String, Any>?
+)
+
+data class ConnectError(
+    val errorCode: String?,
+    val errorType: String?,
+    val displayMessage: String?,
+    val errorMessage: String?
+)
 
 class FuseConnectActivity : Activity() {
     companion object {
@@ -27,10 +38,11 @@ class FuseConnectActivity : Activity() {
         const val CLASS_LOG_TAG_NAME = "FuseConnectActivity"
         const val EVENT_EXTRA = "EventExtra"
         var clientSecret: String? = null
+        var lastConnectError: ConnectError? = null
 
         var onInstitutionSelected: ((String, callback: (String) -> Unit) -> Unit)? = null
         var onSuccess: ((String) -> Unit)? = null
-
+        var onExit: ((Exit) -> Unit)? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,7 +124,20 @@ class FuseConnectActivity : Activity() {
                 openPlaid(uri.getQueryParameter("plaid_link_token")!!)
             }
             "ON_EXIT" -> {
-
+                if (lastConnectError != null) {
+                    onExit?.invoke(Exit(lastConnectError, null))
+                } else {
+                    val error = uri.getQueryParameter("error")
+                    if (error == null) {
+                        onExit?.invoke(Exit(null, null))
+                    } else {
+                        val errorType = uri.getQueryParameter("error_type")
+                        val errorMessage = uri.getQueryParameter("error_message")
+                        val connectError = ConnectError(error, errorType, null, errorMessage)
+                        val exit = Exit(connectError, null)
+                        onExit?.invoke(exit)
+                    }
+                }
             }
         }
     }
@@ -139,7 +164,15 @@ class FuseConnectActivity : Activity() {
 
             finish()
         },
-        onExit = { }
+        onExit = { linkExit ->
+            val error = linkExit.error
+            error?.let { err ->
+                val errorCode = err.errorCode
+                val errorMessage = err.errorMessage
+                val displayMessage = err.displayMessage
+                lastConnectError = ConnectError(errorCode.json, null, displayMessage, errorMessage)
+            }
+        }
     )
 
     private fun openPlaid(linkToken: String) {
