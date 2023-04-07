@@ -4,18 +4,15 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import com.google.gson.Gson
 import com.plaid.link.Plaid
 import com.plaid.link.PlaidHandler
 import com.plaid.link.linkTokenConfiguration
-import com.plaid.link.result.LinkExit
 import com.plaid.link.result.LinkResultHandler
-import com.plaid.link.result.LinkSuccess
-import kotlinx.serialization.json.Json
 import java.nio.charset.StandardCharsets
 import java.util.*
 
@@ -33,7 +30,7 @@ data class ConnectError(
 
 class FuseConnectActivity : Activity() {
     companion object {
-        const val WEB_VIEW_BASE_URL = "https://shoreditch-indol.vercel.app"
+        var WEB_VIEW_BASE_URL = "https://connect.letsfuse.com"
         const val SECRET_CONFIGURATION_EXTRA = "secret_configuration_extra"
         const val CLASS_LOG_TAG_NAME = "FuseConnectActivity"
         const val EVENT_EXTRA = "EventExtra"
@@ -123,6 +120,10 @@ class FuseConnectActivity : Activity() {
             "OPEN_PLAID" -> {
                 openPlaid(uri.getQueryParameter("plaid_link_token")!!)
             }
+            "OPEN_SNAPTRADE" -> {
+                Log.d(CLASS_LOG_TAG_NAME, "OPEN_SNAPTRADE ${uri.getQueryParameter("redirect_uri")}")
+                openSnaptrade(uri.getQueryParameter("redirect_uri")!!)
+            }
             "ON_EXIT" -> {
                 if (lastConnectError != null) {
                     onExit?.invoke(Exit(lastConnectError, null))
@@ -146,22 +147,24 @@ class FuseConnectActivity : Activity() {
 
     private val linkResultHandler = LinkResultHandler(
         onSuccess = { linkSuccess ->
-            data class FinancialConnectionsData(val type: String, val public_token: String)
-            data class Root(val session_client_secret: String, val data: FinancialConnectionsData)
+            val jsonString = """
+                {
+                  "session_client_secret": "${clientSecret!!}",
+                  "data": {
+                    "type": "plaid",
+                    "public_token": "${linkSuccess.publicToken}"
+                  }
+                }
+            """.trimIndent()
+            Log.d(CLASS_LOG_TAG_NAME, "jsonString $jsonString")
 
-            val json = Root(
-                session_client_secret = clientSecret!!,
-                FinancialConnectionsData("plaid", linkSuccess.publicToken)
-            )
-            val gson = Gson()
-            val jsonString = gson.toJson(json)
             val jsonStringByte = jsonString.toByteArray(StandardCharsets.UTF_8)
-            val encodedJson =
-                android.util.Base64.encodeToString(jsonStringByte, android.util.Base64.DEFAULT)
+            Log.d(CLASS_LOG_TAG_NAME, "jsonStringBye $jsonStringByte")
+
+            val encodedJson = Base64.encodeToString(jsonStringByte, Base64.DEFAULT)
+            Log.d(CLASS_LOG_TAG_NAME, "Encoded json $encodedJson")
 
             onSuccess!!(encodedJson)
-
-            Log.d(CLASS_LOG_TAG_NAME, "Encoded json $encodedJson")
 
             finish()
         },
@@ -184,6 +187,39 @@ class FuseConnectActivity : Activity() {
         val plaidHandler: PlaidHandler = Plaid.create(application, linkTokenConfiguration)
 
         plaidHandler.open(this)
+    }
+
+    private fun openSnaptrade(redirectUri: String) {
+        val intent = Intent(this, SnaptradeConnectActivity::class.java)
+        intent.putExtra("redirectUri", redirectUri)
+        this.startActivityForResult(intent, 928)
+
+        SnaptradeConnectActivity.onSuccess = { authorizationId ->
+            val jsonString = """
+                {
+                  "session_client_secret": "${clientSecret!!}",
+                  "data": {
+                    "type": "snaptrade",
+                    "brokerage_authorization_id": "$authorizationId"
+                  }
+                }
+            """.trimIndent()
+            Log.d(CLASS_LOG_TAG_NAME, "jsonString $jsonString")
+
+            val jsonStringByte = jsonString.toByteArray(StandardCharsets.UTF_8)
+            Log.d(CLASS_LOG_TAG_NAME, "jsonStringBye $jsonStringByte")
+
+            val encodedJson = Base64.encodeToString(jsonStringByte, Base64.DEFAULT)
+            Log.d(CLASS_LOG_TAG_NAME, "Encoded json $encodedJson")
+
+            onSuccess!!(encodedJson)
+
+            finish()
+        }
+
+        SnaptradeConnectActivity.onExit = {
+
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
