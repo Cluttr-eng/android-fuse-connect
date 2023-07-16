@@ -44,7 +44,7 @@ class FuseConnectActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        println("Testing logs 123");
         clientSecret = intent.getStringExtra("clientSecret")
 
         val secretConfiguration =
