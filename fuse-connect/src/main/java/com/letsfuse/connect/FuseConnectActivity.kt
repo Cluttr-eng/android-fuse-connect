@@ -3,12 +3,16 @@ package com.letsfuse.connect
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.mazenrashed.logdnaandroidclient.LogDna
+import com.mazenrashed.logdnaandroidclient.models.Line
+import com.plaid.link.BuildConfig
 import com.plaid.link.Plaid
 import com.plaid.link.PlaidHandler
 import com.plaid.link.linkTokenConfiguration
@@ -42,9 +46,25 @@ class FuseConnectActivity : Activity() {
         var onExit: ((Exit) -> Unit)? = null
     }
 
+    private fun getDeviceHostname(): String {
+        val manufacturer = Build.MANUFACTURER
+        val model = Build.MODEL
+        return "$manufacturer $model"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        println("Testing logs 123");
+        LogDna.init(com.letsfuse.connect.BuildConfig.MEZMO_INGESTION_KEY, "Fuse", getDeviceHostname())
+        LogDna.log(
+            Line.Builder().setLine("Logging test")
+                .addCustomField(Line.CustomField("fName", "mazen"))
+                .addCustomField(Line.CustomField("lName", "rashed"))
+                .addCustomField(Line.CustomField("age", 25))
+                .setLevel(Line.LEVEL_INFO)
+                .setTime(System.currentTimeMillis())
+                .build()
+        )
+
         clientSecret = intent.getStringExtra("clientSecret")
 
         val secretConfiguration =
