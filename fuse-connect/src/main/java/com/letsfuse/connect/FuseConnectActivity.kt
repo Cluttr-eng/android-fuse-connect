@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Base64
+import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -61,10 +62,11 @@ class FuseConnectActivity : Activity() {
                 .setTime(System.currentTimeMillis())
                 .build()
         )
+        Log.i(CLASS_LOG_TAG_NAME, message);
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        LogDna.init(com.letsfuse.connect.BuildConfig.MEZMO_INGESTION_KEY, "Fuse", getDeviceHostname())
+        LogDna.init(BuildConfig.MEZMO_INGESTION_KEY, "Fuse", getDeviceHostname())
         clientSecret = intent.getStringExtra("clientSecret")
 
         val secretConfiguration =
