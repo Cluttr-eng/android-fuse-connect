@@ -3,12 +3,15 @@ package com.letsfuse.connect
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.mazenrashed.logdnaandroidclient.LogDna
+import com.mazenrashed.logdnaandroidclient.models.Line
 import com.plaid.link.Plaid
 import com.plaid.link.PlaidHandler
 import com.plaid.link.linkTokenConfiguration
@@ -42,9 +45,28 @@ class FuseConnectActivity : Activity() {
         var onExit: ((Exit) -> Unit)? = null
     }
 
+    private fun getDeviceHostname(): String {
+        val manufacturer = Build.MANUFACTURER
+        val model = Build.MODEL
+        return "$manufacturer $model"
+    }
+
+    private fun log(message: String) {
+        LogDna.log(
+            Line.Builder().setLine(message)
+                .addCustomField(Line.CustomField("tag", CLASS_LOG_TAG_NAME))
+                .addCustomField(Line.CustomField("clientSecret",
+                    (if (clientSecret != null) clientSecret else "")!!
+                ))
+                .setLevel(Line.LEVEL_INFO)
+                .setTime(System.currentTimeMillis())
+                .build()
+        )
+        Log.i(CLASS_LOG_TAG_NAME, message);
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        LogDna.init(BuildConfig.MEZMO_INGESTION_KEY, "Fuse", getDeviceHostname())
         clientSecret = intent.getStringExtra("clientSecret")
 
         val secretConfiguration =
@@ -55,7 +77,7 @@ class FuseConnectActivity : Activity() {
 
 
         if (secretConfiguration != null) {
-            Log.i(CLASS_LOG_TAG_NAME, secretConfiguration.clientSecret)
+            log("Secret configuration populated")
         }
 
         setContentView(R.layout.activity_fuse_connect)
@@ -83,17 +105,16 @@ class FuseConnectActivity : Activity() {
         webView.settings.javaScriptEnabled = true
 
 
-        Log.i(CLASS_LOG_TAG_NAME, "finished loading")
+        log("finished loading")
         webView.loadUrl("$WEB_VIEW_BASE_URL/intro?client_secret=$clientSecret&webview=true")
-        Log.i(CLASS_LOG_TAG_NAME, "started loading")
+        log("started loading")
     }
 
     private fun handleUri(uri: Uri): Boolean {
-
+        log("handleUri: $uri")
         if (uri.scheme == "fuse") {
-            Log.i(CLASS_LOG_TAG_NAME, uri.toString())
             val eventName = uri.getQueryParameter("event_name")!!
-            Log.i(CLASS_LOG_TAG_NAME, "Event name $eventName")
+            log("Event name $eventName")
 
             processWebViewEvent(eventName = eventName, uri = uri)
 
@@ -104,13 +125,15 @@ class FuseConnectActivity : Activity() {
     }
 
     private fun processWebViewEvent(eventName: String, uri: Uri) {
+        log("processWebViewEvent")
         when (eventName) {
             "ON_SUCCESS" -> {
+                log("ON_SUCCESS: ${uri.getQueryParameter("public_token")}")
                 onSuccess!!(uri.getQueryParameter("public_token")!!)
                 finish()
             }
             "ON_INSTITUTION_SELECTED" -> {
-                Log.i(CLASS_LOG_TAG_NAME, "Sending ON_INSTITUTION_SELECTED")
+                log("ON_INSTITUTION_SELECTED: ${uri.getQueryParameter("institution_id")}")
                 onInstitutionSelected!!(uri.getQueryParameter("institution_id")!!) { linkToken ->
 
                     val webView = findViewById<WebView>(R.id.webview)
@@ -118,13 +141,15 @@ class FuseConnectActivity : Activity() {
                 }
             }
             "OPEN_PLAID" -> {
+                log("OPEN_PLAID: ${uri.getQueryParameter("plaid_link_token")}")
                 openPlaid(uri.getQueryParameter("plaid_link_token")!!)
             }
             "OPEN_SNAPTRADE" -> {
-                Log.d(CLASS_LOG_TAG_NAME, "OPEN_SNAPTRADE ${uri.getQueryParameter("redirect_uri")}")
+                log("OPEN_SNAPTRADE: ${uri.getQueryParameter("redirect_uri")}")
                 openSnaptrade(uri.getQueryParameter("redirect_uri")!!)
             }
             "ON_EXIT" -> {
+                log("ON_EXIT");
                 if (lastConnectError != null) {
                     onExit?.invoke(Exit(lastConnectError, null))
                 } else {
@@ -136,6 +161,7 @@ class FuseConnectActivity : Activity() {
                         val errorMessage = uri.getQueryParameter("error_message")
                         val connectError = ConnectError(error, errorType, null, errorMessage)
                         val exit = Exit(connectError, null)
+                        log("ON_EXIT: $errorType $errorMessage")
                         onExit?.invoke(exit)
                     }
                 }
@@ -156,13 +182,13 @@ class FuseConnectActivity : Activity() {
                   }
                 }
             """.trimIndent()
-            Log.d(CLASS_LOG_TAG_NAME, "jsonString $jsonString")
+            log("jsonString $jsonString")
 
             val jsonStringByte = jsonString.toByteArray(StandardCharsets.UTF_8)
-            Log.d(CLASS_LOG_TAG_NAME, "jsonStringBye $jsonStringByte")
+            log("jsonStringBye $jsonStringByte")
 
             val encodedJson = Base64.encodeToString(jsonStringByte, Base64.DEFAULT)
-            Log.d(CLASS_LOG_TAG_NAME, "Encoded json $encodedJson")
+            log("Encoded json $encodedJson")
 
             onSuccess!!(encodedJson)
 
@@ -204,13 +230,13 @@ class FuseConnectActivity : Activity() {
                   }
                 }
             """.trimIndent()
-            Log.d(CLASS_LOG_TAG_NAME, "jsonString $jsonString")
+            log("jsonString $jsonString")
 
             val jsonStringByte = jsonString.toByteArray(StandardCharsets.UTF_8)
-            Log.d(CLASS_LOG_TAG_NAME, "jsonStringBye $jsonStringByte")
+            log("jsonStringBye $jsonStringByte")
 
             val encodedJson = Base64.encodeToString(jsonStringByte, Base64.DEFAULT)
-            Log.d(CLASS_LOG_TAG_NAME, "Encoded json $encodedJson")
+            log("Encoded json $encodedJson")
 
             onSuccess!!(encodedJson)
 
