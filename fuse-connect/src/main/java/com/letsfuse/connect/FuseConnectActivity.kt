@@ -10,6 +10,7 @@ import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.google.gson.Gson
 import com.mazenrashed.logdnaandroidclient.LogDna
 import com.mazenrashed.logdnaandroidclient.models.Line
 import com.plaid.link.Plaid
@@ -31,6 +32,10 @@ data class ConnectError(
     val errorMessage: String?
 )
 
+data class LinkTokenJson(
+    val fallback_aggregators: Array<String>?
+)
+
 class FuseConnectActivity : Activity() {
     companion object {
         var WEB_VIEW_BASE_URL = "https://connect.letsfuse.com"
@@ -39,10 +44,14 @@ class FuseConnectActivity : Activity() {
         const val EVENT_EXTRA = "EventExtra"
         var clientSecret: String? = null
         var lastConnectError: ConnectError? = null
+        var closeOnExit: Boolean = false
 
         var onInstitutionSelected: ((String, callback: (String) -> Unit) -> Unit)? = null
         var onSuccess: ((String) -> Unit)? = null
         var onExit: ((Exit) -> Unit)? = null
+
+        var lastLinkTokenJson: LinkTokenJson? = null
+        var lastLinkToken: String? = null
     }
 
     private fun getDeviceHostname(): String {
@@ -136,17 +145,22 @@ class FuseConnectActivity : Activity() {
                 log("ON_INSTITUTION_SELECTED: ${uri.getQueryParameter("institution_id")}")
                 onInstitutionSelected!!(uri.getQueryParameter("institution_id")!!) { linkToken ->
 
+                    val decodedJson = String(Base64.decode(linkToken, Base64.DEFAULT))
+                    lastLinkTokenJson = Gson().fromJson(decodedJson, LinkTokenJson::class.java)
+                    lastLinkToken = linkToken
+
                     val webView = findViewById<WebView>(R.id.webview)
                     webView.loadUrl("$WEB_VIEW_BASE_URL/bank-link?link_token=$linkToken")
                 }
             }
             "OPEN_PLAID" -> {
-                log("OPEN_PLAID: ${uri.getQueryParameter("plaid_link_token")}")
-                openPlaid(uri.getQueryParameter("plaid_link_token")!!)
+                log("OPEN_PLAID: ${uri.getQueryParameter("plaid_link_token")} ${uri.getQueryParameter("close_on_exit")}")
+                openPlaid(uri.getQueryParameter("plaid_link_token")!!, uri.getQueryParameter("close_on_exit") == "true")
             }
             "OPEN_SNAPTRADE" -> {
-                log("OPEN_SNAPTRADE: ${uri.getQueryParameter("redirect_uri")}")
-                openSnaptrade(uri.getQueryParameter("redirect_uri")!!)
+                log("OPEN_SNAPTRADE: ${uri.getQueryParameter("redirect_uri")} ${uri.getQueryParameter("close_on_exit")}")
+
+                openSnaptrade(uri.getQueryParameter("redirect_uri")!!, uri.getQueryParameter("close_on_exit") == "true")
             }
             "ON_EXIT" -> {
                 log("ON_EXIT");
@@ -202,20 +216,56 @@ class FuseConnectActivity : Activity() {
                 val displayMessage = err.displayMessage
                 lastConnectError = ConnectError(errorCode.json, null, displayMessage, errorMessage)
             }
+
+            val retryableErrors = listOf(
+                "INSTITUTION_DOWN",
+                "INSTITUTION_NO_LONGER_SUPPORTED",
+                "INSTITUTION_NOT_AVAILABLE",
+                "INSTITUTION_NOT_ENABLED_IN_ENVIRONMENT",
+                "INSTITUTION_NOT_FOUND",
+                "INSTITUTION_NOT_RESPONDING",
+                "INSTITUTION_REGISTRATION_REQUIRED",
+                "UNAUTHORIZED_INSTITUTION",
+                "INSTITUTION_DOWN",
+                "INTERNAL_SERVER_ERROR",
+                "INVALID_SEND_METHOD",
+                "ITEM_LOCKED",
+                "ITEM_NOT_SUPPORTED",
+                "MFA_NOT_SUPPORTED",
+                "NO_ACCOUNTS",
+                "USER_INPUT_TIMEOUT",
+                "USER_SETUP_REQUIRED",
+            );
+
+
+            if (lastConnectError != null && retryableErrors.contains(lastConnectError?.errorCode ?: "") && lastLinkTokenJson?.fallback_aggregators?.isNotEmpty() == true) {
+                val webView = findViewById<WebView>(R.id.webview)
+                webView.loadUrl("$WEB_VIEW_BASE_URL/bank-link?link_token=$lastLinkToken&is_fall_back=true")
+            } else {
+                if (closeOnExit) {
+                    if (lastConnectError != null) {
+                        onExit?.invoke(Exit(lastConnectError, null))
+                    } else {
+                        onExit?.invoke(Exit(null, null))
+                    }
+                    finish()
+                }
+            }
         }
     )
 
-    private fun openPlaid(linkToken: String) {
+    private fun openPlaid(linkToken: String, closeOnExit: Boolean = false) {
         val linkTokenConfiguration = linkTokenConfiguration {
             token = linkToken
         }
 
         val plaidHandler: PlaidHandler = Plaid.create(application, linkTokenConfiguration)
 
+        FuseConnectActivity.closeOnExit = closeOnExit
         plaidHandler.open(this)
     }
 
-    private fun openSnaptrade(redirectUri: String) {
+    private fun openSnaptrade(redirectUri: String, closeOnExit: Boolean = false) {
         val intent = Intent(this, SnaptradeConnectActivity::class.java)
         intent.putExtra("redirectUri", redirectUri)
         this.startActivityForResult(intent, 928)
@@ -244,7 +294,10 @@ class FuseConnectActivity : Activity() {
         }
 
         SnaptradeConnectActivity.onExit = {
-
+            if (closeOnExit) {
+                onExit?.invoke(Exit(null, null))
+                finish()
+            }
         }
     }
 
