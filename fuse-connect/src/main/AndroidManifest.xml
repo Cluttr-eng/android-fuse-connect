@@ -3,4 +3,5 @@
     package="com.letsfuse.connect">
 
     <uses-permission android:name="android.permission.INTERNET" />
+
 </manifest>
