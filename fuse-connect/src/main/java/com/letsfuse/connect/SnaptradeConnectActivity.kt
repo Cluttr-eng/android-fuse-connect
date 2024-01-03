@@ -24,6 +24,7 @@ class SnaptradeConnectActivity : Activity() {
                         finish()
                     }
                     it.contains("ABANDONED") -> {
+                        onExit!!()
                         finish()
                     }
                     it.contains("ERROR") -> {
